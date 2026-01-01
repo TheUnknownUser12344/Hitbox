@@ -85,6 +85,23 @@ function Hitbox:_Enabled()
     end
 end
 
+--[[Enable. Turns on the hitbox changing its current state to Active.    
+
+    ==============
+
+    Hitbox:Enable(5)
+
+    ==============
+
+    Hitbox.Option = "Once" -- Disables the hitbox after ANY SINGLE ENCOUNTER
+    Hitbox:Enable(5)
+
+    ==============
+    
+    Htibox:Enable(-1) -- Runs FOREVER until disabled.
+
+    ==============
+]]
 function Hitbox:Enable(Time)
     assert(not self._Destroyed, "Hitbox is destroyed")
 
@@ -117,6 +134,10 @@ function Hitbox:Enable(Time)
     end
 end
 
+--[[Disable. Turns off the hitbox changing its current state to Inactive.
+        
+    Hitbox:Disable()
+]]
 function Hitbox:Disable()
     if self._Heartbeat then
         self._Heartbeat:Disconnect()
@@ -126,6 +147,10 @@ function Hitbox:Disable()
     table.clear(self._PartCache)
 end
 
+--[[Destroy. Terminates the hitbox objects and cleans up any threads, connections, or signals that are currently active.
+    
+    Hitbox:Destroy()
+]]
 function Hitbox:Destroy()
     if self._Destroyed then return end
     self._Destroyed = true
