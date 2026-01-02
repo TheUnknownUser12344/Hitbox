@@ -8,5 +8,4 @@ hitbox.PartEntered:Connect(function(part)
    print(hitbox.State)
 end)
 
-
-hitbox:Enable(5)
+hitbox:Enable(3)
