@@ -4,6 +4,7 @@ local RunService = game:GetService("RunService")
 
 local GoodSignal = require(script.GoodSignal)
 local Janitor = require(script.janitor)
+local State = require(script.State)
 
 local Hitbox = {}
 Hitbox.__index = Hitbox
@@ -12,6 +13,7 @@ function Hitbox.new(Parts)
     local self = setmetatable({
         Parts = Parts,
         OverlapParams = nil,
+        State = State.Inactive,
 
         PartEntered = GoodSignal.new(),
         PlayerEntered = GoodSignal.new(),
@@ -43,6 +45,8 @@ function Hitbox:_Delay()
 end
 
 function Hitbox:_Enabled()
+    local NewCache = {}
+
     for _, Part in self.Parts do
         local PartsInPart = workspace:GetPartsInPart(Part, self.OverlapParams)
 
@@ -50,8 +54,9 @@ function Hitbox:_Enabled()
             -- Get Parent Of Part
             local Parent = FoundPart.Parent ~= workspace and FoundPart.Parent or FoundPart
 
+            NewCache[FoundPart] = true
             -- Dont Fire If Its In The Cache
-            if self._PartCache[Parent] then continue end
+            if self._PartCache[FoundPart] then continue end
 
             self.PartEntered:Fire(FoundPart)
 
@@ -64,9 +69,6 @@ function Hitbox:_Enabled()
 
                 self.PlayerEntered:Fire(Parent, FoundPart)
             end
-
-            -- This Allows For Indexing Instead Of A Find Search
-            self._PartCache[Parent] = true
         end
 
         -- Check Options
@@ -76,16 +78,81 @@ function Hitbox:_Enabled()
         end
 
         if (self.Options == "Once" or self.Options == "Wait") and #PartsInPart > 0 then
-            
-            task.cancel(self._DelayThread)
+            self._Janitor:Remove("DelayThread")
             self:Disable()
             self.Completed:Fire()
             return
         end
     end
+
+    self._PartCache = NewCache
 end
 
---[[Enable. Turns on the hitbox changing its current state to Active.    
+function Hitbox:_SetState(NewState, ...)
+    if self.State == NewState then return end
+
+    self:_OnExit(self.State, ...)
+    
+    self.State = NewState
+
+    self:_OnEnter(NewState, ...)
+end
+
+function Hitbox:_OnEnter(state, Time)
+    if state == State.Active then
+        assert(not self._Destroyed, "Hitbox is destroyed")
+
+        self._CurrentThread = coroutine.running()
+        self._t = os.clock()
+
+        self._Janitor:Add(
+            RunService.Heartbeat:Connect(function()
+                if self:_Delay() then return end
+                self._t = os.clock()
+                self:_Enabled()
+            end), nil, "Update"
+        )
+
+        if Time == -1 then return end
+
+        self._Janitor:Add(
+            task.delay(Time, function()
+                if self.Options == "Wait" and self._CurrentThread then
+                    task.spawn(self._CurrentThread)
+                end
+
+                self:Disable()
+                self.Completed:Fire()
+            end), nil, "DelayThread"
+        )
+
+        if self.Options == "Wait" then
+            return coroutine.yield()
+        end
+    elseif state == State.OnCooldown then
+        self._Janitor:Add(
+            task.delay(Time, function()
+                self:_SetState(State.Inactive)                
+            end), nil, "CooldownThread"
+        )
+    end
+end
+
+function Hitbox:_OnExit(state)
+    if state == State.Active then
+        self._Janitor:Remove("Update")
+
+        table.clear(self._PartCache)
+    elseif state == State.OnCooldown then
+        self._Janitor:Remove("CooldownThread")
+    end
+end
+
+function Hitbox:Cooldown(Time)
+    self:_SetState(State.OnCooldown, Time)
+end
+
+--[[Enable. Turns on the hitbox changing its current state to Active.
 
     ==============
 
@@ -103,35 +170,9 @@ end
     ==============
 ]]
 function Hitbox:Enable(Time)
-    assert(not self._Destroyed, "Hitbox is destroyed")
+    if self.State == State.OnCooldown then return end
 
-    self._CurrentThread = coroutine.running()
-    self._t = os.clock()
-
-    self._Heartbeat = self._Janitor:Add(
-        RunService.Heartbeat:Connect(function()
-            if self:_Delay() then return end
-            self._t = os.clock()
-            self:_Enabled()
-        end)
-    )
-
-    if Time == -1 then return end
-
-    self._DelayThread = self._Janitor:Add(
-        task.delay(Time, function()
-            if self.Options == "Wait" and self._CurrentThread then
-                task.spawn(self._CurrentThread)
-            end
-
-            self:Disable()
-            self.Completed:Fire()
-        end)
-    )
-
-    if self.Options == "Wait" then
-        return coroutine.yield()
-    end
+    self:_SetState(State.Active, Time)
 end
 
 --[[Disable. Turns off the hitbox changing its current state to Inactive.
@@ -139,12 +180,7 @@ end
     Hitbox:Disable()
 ]]
 function Hitbox:Disable()
-    if self._Heartbeat then
-        self._Heartbeat:Disconnect()
-        self._Heartbeat = nil
-    end
-
-    table.clear(self._PartCache)
+    self:_SetState(State.Inactive)
 end
 
 --[[Destroy. Terminates the hitbox objects and cleans up any threads, connections, or signals that are currently active.
