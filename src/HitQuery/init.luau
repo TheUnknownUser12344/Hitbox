@@ -1,5 +1,3 @@
---!strict
-
 local RunService = game:GetService("RunService")
 
 --Hitbox Utilizing Roblox's Spatial Query Methods
