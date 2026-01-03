@@ -189,7 +189,7 @@ end
     ==============
 ]]
 function Hitbox:Enable(Time)
-    if self.State == State.OnCooldown then return end
+    if self.State == State.OnCooldown or self.State == State.Active then return end
 
     self:_SetState(State.Active, Time)
 end
