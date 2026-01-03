@@ -1,5 +1,5 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Hitbox = require(ReplicatedStorage.Hitbox)
+local Hitbox = require(ReplicatedStorage.HitQuery)
 
 local hitbox = Hitbox.new({workspace.Test1})
 
@@ -8,4 +8,7 @@ hitbox.PartEntered:Connect(function(part)
    print(hitbox.State)
 end)
 
-hitbox:Enable(3)
+
+hitbox:Wait()
+
+print("wojkaspd")
