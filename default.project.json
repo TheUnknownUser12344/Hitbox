@@ -4,8 +4,8 @@
     "$className": "DataModel",
 
     "ReplicatedStorage": {
-      "Hitbox": {
-        "$path": "src/Hitbox"
+      "HitQuery": {
+        "$path": "src/HitQuery"
       }
     },
 
