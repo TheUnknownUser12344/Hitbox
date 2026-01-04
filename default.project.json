@@ -25,7 +25,8 @@
 
     "Workspace": {
       "$properties": {
-        "FilteringEnabled": true
+        "FilteringEnabled": true,
+        "LuauTypeCheckMode": "Strict"
       },
       "Baseplate": {
         "$className": "Part",

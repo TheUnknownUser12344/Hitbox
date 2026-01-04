@@ -1,3 +1,5 @@
+--!strict
+
 local RunService = game:GetService("RunService")
 
 --Hitbox Utilizing Roblox's Spatial Query Methods
@@ -7,10 +9,10 @@ local Janitor = require(script.janitor)
 local State = require(script.State)
 local Types = require(script.Types)
 
-local Hitbox = {}
-Hitbox.__index = Hitbox
+local HitQuery = {}
+HitQuery.__index = HitQuery
 
-function Hitbox.new(Parts): Types.HitQuery
+function HitQuery.new(Parts: { BasePart }): Types.HitQuery
     local self = setmetatable({
         Parts = Parts,
         OverlapParams = nil,
@@ -21,34 +23,36 @@ function Hitbox.new(Parts): Types.HitQuery
         Completed = GoodSignal.new(),
 
         FrameRate = "Unlimited",
-        _Options = nil,
 
+        _Options = nil,
+        _CurrentThread = nil,
+        _t = 0,
         _PartCache = {},
         _Heartbeat = nil,
         _Janitor = Janitor.new(),
         _Destroyed = false,
-    }, Hitbox)
+    }, HitQuery)
 
     -- Register signals for cleanup
     self._Janitor:Add(self.PartEntered, "DisconnectAll")
     self._Janitor:Add(self.PlayerEntered, "DisconnectAll")
     self._Janitor:Add(self.Completed, "DisconnectAll")
 
-    return self
+    return (self :: any) :: Types.HitQuery
 end
 
-function Hitbox:_Identify(Part, Class)
-    return Part.Parent ~= workspace and Part.Parent.ClassName == Class or Part.ClassName == Class
+function HitQuery:_Identify(Part: BasePart, Class)
+    return Part.Parent ~= workspace and (Part.Parent :: Instance).ClassName == Class or Part.ClassName == Class
 end
 
-function Hitbox:_Delay()
-    return self.FrameRate ~= "Unlimited" and os.clock() - self._t < 1 / self.FrameRate
+function HitQuery:_Delay(): boolean
+    return self.FrameRate ~= "Unlimited" and os.clock() - (self._t :: number) < 1 / (self.FrameRate :: number)
 end
 
-function Hitbox:_Enabled()
+function HitQuery:_Enabled()
     local NewCache = {}
 
-    for _, Part in self.Parts do
+    for _, Part: BasePart in self.Parts :: { BasePart } do
         local PartsInPart = workspace:GetPartsInPart(Part, self.OverlapParams)
 
         for _, FoundPart in PartsInPart do
@@ -61,7 +65,7 @@ function Hitbox:_Enabled()
 
             self.PartEntered:Fire(FoundPart)
 
-            if Hitbox:_Identify(FoundPart, "Model") then
+            if HitQuery:_Identify(FoundPart, "Model") then
                 local Humanoid = Parent:FindFirstChildOfClass("Humanoid")
 
                 if not Humanoid then continue end
@@ -75,10 +79,10 @@ function Hitbox:_Enabled()
         -- Check _Options
 
         if self._Options == "Wait" and self._CurrentThread and #PartsInPart > 0 then
-            task.spawn(self._CurrentThread)
+            task.spawn(self._CurrentThread :: thread)
         end
 
-        if (self._Options == "Once" or self._Options == "Wait") and #PartsInPart > 0 then
+        if (self._Options == "Once" or self._Options == "Wait") and (#PartsInPart > 0) then
             self._Options = nil
             self._Janitor:Remove("DelayThread")
             self:Disable()
@@ -90,7 +94,7 @@ function Hitbox:_Enabled()
     self._PartCache = NewCache
 end
 
-function Hitbox:_Active(Time)
+function HitQuery:_Active(Time)
     assert(not self._Destroyed, "Hitbox is destroyed")
 
     self._CurrentThread = coroutine.running()
@@ -109,12 +113,12 @@ function Hitbox:_Active(Time)
             task.delay(Time, function()
                 if self._Options == "Wait" and self._CurrentThread then
                     self._Options = nil
-                    task.spawn(self._CurrentThread)
+                    task.spawn(self._CurrentThread :: thread)
                 end
 
                 self:Disable()
                 self.Completed:Fire()
-            end), nil, "DelayThread"
+            end) :: thread, nil, "DelayThread"
         )
     end
 
@@ -123,7 +127,7 @@ function Hitbox:_Active(Time)
     end
 end
 
-function Hitbox:_SetState(NewState, ...)
+function HitQuery:_SetState(NewState, ...)
     if self.State == NewState then return end
 
     self:_OnExit(self.State, ...)
@@ -133,7 +137,7 @@ function Hitbox:_SetState(NewState, ...)
     self:_OnEnter(NewState, ...)
 end
 
-function Hitbox:_OnEnter(state, Time)
+function HitQuery:_OnEnter(state, Time)
     if state == State.Active then
         self:_Active(Time)
     elseif state == State.OnCooldown then
@@ -145,28 +149,28 @@ function Hitbox:_OnEnter(state, Time)
     end
 end
 
-function Hitbox:_OnExit(state)
+function HitQuery:_OnExit(state)
     if state == State.Active then
         self._Janitor:Remove("Update")
 
-        table.clear(self._PartCache)
+        table.clear(self._PartCache :: { BasePart })
     elseif state == State.OnCooldown then
         self._Janitor:Remove("CooldownThread")
     end
 end
 
-function Hitbox:Cooldown(Time)
+function HitQuery:Cooldown(Time)
     assert(Time, "A number must be specified.")
 
     self:_SetState(State.OnCooldown, Time)
 end
 
-function Hitbox:Once()
+function HitQuery:Once()
     self._Options = "Once"
     self:Enable(-1)
 end
 
-function Hitbox:Wait()
+function HitQuery:Wait()
     self._Options = "Wait"
     self:Enable(-1)
 end
@@ -188,7 +192,7 @@ end
 
     ==============
 ]]
-function Hitbox:Enable(Time)
+function HitQuery:Enable(Time)
     if self.State == State.OnCooldown or self.State == State.Active then return end
 
     self:_SetState(State.Active, Time)
@@ -198,7 +202,7 @@ end
         
     Hitbox:Disable()
 ]]
-function Hitbox:Disable()
+function HitQuery:Disable()
     self:_SetState(State.Inactive)
 end
 
@@ -206,7 +210,7 @@ end
     
     Hitbox:Destroy()
 ]]
-function Hitbox:Destroy()
+function HitQuery:Destroy()
     if self._Destroyed then return end
     self._Destroyed = true
 
@@ -216,4 +220,4 @@ function Hitbox:Destroy()
     setmetatable(self, nil)
 end
 
-return Hitbox
+return HitQuery

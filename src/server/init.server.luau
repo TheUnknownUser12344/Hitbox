@@ -8,7 +8,6 @@ hitbox.PartEntered:Connect(function(part)
    print(hitbox.State)
 end)
 
-
 hitbox:Wait()
 
 print("wojkaspd")
