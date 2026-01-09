@@ -27,6 +27,7 @@ function HitQuery.new(Parts: { BasePart }): Types.HitQuery
         _Options = nil,
         _CurrentThread = nil,
         _t = 0,
+        _PlayerCache = {},
         _PartCache = {},
         _Heartbeat = nil,
         _Janitor = Janitor.new(),
@@ -45,12 +46,27 @@ function HitQuery:_Identify(Part: BasePart, Class)
     return Part.Parent ~= workspace and (Part.Parent :: Instance).ClassName == Class or Part.ClassName == Class
 end
 
+function HitQuery:_IsPlayer(Part, Class): boolean
+    if HitQuery:_Identify(Part, "Model") then
+        local Parent = Part.Parent
+
+        if not Parent then return false end
+
+        local Humanoid = Parent:FindFirstChildOfClass("Humanoid")
+
+        return Humanoid ~= nil
+    end
+
+    return false
+end
+
 function HitQuery:_Delay(): boolean
     return self.FrameRate ~= "Unlimited" and os.clock() - (self._t :: number) < 1 / (self.FrameRate :: number)
 end
 
 function HitQuery:_Enabled()
-    local NewCache = {}
+    local ObjectCache = {}
+    local PlayerCache = {}
 
     for _, Part: BasePart in self.Parts :: { BasePart } do
         local PartsInPart = workspace:GetPartsInPart(Part, self.OverlapParams)
@@ -59,28 +75,39 @@ function HitQuery:_Enabled()
             -- Get Parent Of Part
             local Parent = FoundPart.Parent ~= workspace and FoundPart.Parent or FoundPart
 
-            NewCache[FoundPart] = true
+            ObjectCache[FoundPart] = true
+
             -- Dont Fire If Its In The Cache
             if self._PartCache[FoundPart] then continue end
-
+            
             self.PartEntered:Fire(FoundPart)
 
-        -- Check _Options
+            if HitQuery:_IsPlayer(FoundPart, "Model") then
+                if self._PlayerCache[Parent] then
+                    continue
+                end
+                PlayerCache[Parent] = true
 
-        if self._Options == "Wait" and self._CurrentThread and #PartsInPart > 0 then
-            task.spawn(self._CurrentThread :: thread)
-        end
+                self.PlayerEntered:Fire(Parent, FoundPart)
+            end
+            -- Check _Options
 
-        if (self._Options == "Once" or self._Options == "Wait") and (#PartsInPart > 0) then
-            self._Options = nil
-            self._Janitor:Remove("DelayThread")
-            self:Disable()
-            self.Completed:Fire()
-            return
-        end
+            if self._Options == "Wait" and self._CurrentThread and #PartsInPart > 0 then
+                task.spawn(self._CurrentThread :: thread)
+            end
+
+            if (self._Options == "Once" or self._Options == "Wait") and (#PartsInPart > 0) then
+                self._Options = nil
+                self._Janitor:Remove("DelayThread")
+                self:Disable()
+                self.Completed:Fire()
+                return
+            end
+        end 
     end
 
-    self._PartCache = NewCache
+    self._PartCache = ObjectCache
+    self._PlayerCache = PlayerCache
 end
 
 function HitQuery:_Active(Time)
