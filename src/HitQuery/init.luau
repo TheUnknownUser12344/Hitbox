@@ -65,17 +65,6 @@ function HitQuery:_Enabled()
 
             self.PartEntered:Fire(FoundPart)
 
-            if HitQuery:_Identify(FoundPart, "Model") then
-                local Humanoid = Parent:FindFirstChildOfClass("Humanoid")
-
-                if not Humanoid then continue end
-
-                -- Its A Character
-
-                self.PlayerEntered:Fire(Parent, FoundPart)
-            end
-        end
-
         -- Check _Options
 
         if self._Options == "Wait" and self._CurrentThread and #PartsInPart > 0 then
